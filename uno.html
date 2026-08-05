@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>우노 UNO</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #f5efe0 0%, #ece0c8 40%, #ddc9a3 100%);
+    color: #5a4a35;
+    min-height: 100vh;
+    padding: 12px;
+    user-select: none;
+    text-align: center;
+  }
+  h1 { font-size: 26px; margin-bottom: 4px; color: #8a6d3b; text-shadow: 0 2px 4px rgba(255,255,255,0.6); }
+  #info { font-size: 13px; color: #8a6d3b; margin-bottom: 8px; }
+  #msg { min-height: 26px; font-weight: bold; color: #a0522d; font-size: 16px; margin-bottom: 8px; }
+
+  #wrap {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    justify-content: center;
+    max-width: 1020px;
+    margin: 0 auto 12px;
+  }
+  #table {
+    position: relative;
+    flex: 1;
+    max-width: 820px;
+    height: 540px;
+    background: radial-gradient(ellipse at center, #f3e9d2 0%, #e6d4ad 60%, #c9ad77 100%);
+    border: 4px solid #b08d4e;
+    border-radius: 24px;
+    box-shadow: inset 0 0 36px rgba(255,255,255,0.4), 0 8px 24px rgba(138,109,59,0.3);
+  }
+
+  /* ===== 사이드 패널 ===== */
+  #scoreboard {
+    flex: 0 0 168px;
+    background: rgba(255,251,240,0.7);
+    border: 2px solid #c9a86a;
+    border-radius: 18px;
+    padding: 14px 12px;
+    box-shadow: 0 6px 16px rgba(138,109,59,0.25);
+    text-align: center;
+  }
+  #scoreboard h2 { font-size: 15px; color: #8a6d3b; margin-bottom: 10px; }
+  .score-row { display: flex; justify-content: space-around; margin-bottom: 12px; }
+  .score-box {
+    background: #fffdf7;
+    border-radius: 12px;
+    padding: 10px 8px;
+    width: 60px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    border: 1px solid #e8d9b8;
+  }
+  .score-box .label { font-size: 12px; color: #b08d4e; font-weight: bold; margin-bottom: 2px; }
+  .score-box .val { font-size: 26px; font-weight: bold; }
+  .score-box.win .val { color: #d97706; }
+  .score-box.lose .val { color: #9c7a4a; }
+  #btnResetScore {
+    background: #c9a86a; color: #fff; border: none; padding: 6px 12px;
+    border-radius: 12px; font-size: 12px; cursor: pointer; font-weight: bold;
+    margin-bottom: 14px;
+  }
+  #btnResetScore:hover { background: #b88a4a; }
+
+  /* ===== 이쁜 카드 미리보기 (사이드) ===== */
+  .card-deco {
+    display: flex; justify-content: center; gap: 6px;
+    margin: 8px 0 6px;
+    perspective: 600px;
+  }
+  .card-deco .uno-card {
+    width: 38px; height: 56px;
+    transform: rotate(-8deg);
+  }
+  .card-deco .uno-card:nth-child(2) { transform: rotate(4deg); margin-left: -10px; }
+  .card-deco .uno-card:nth-child(3) { transform: rotate(-3deg); margin-left: -10px; }
+  .deco-title { font-size: 12px; color: #b08d4e; margin-top: 10px; margin-bottom: 4px; font-weight: bold; }
+
+  /* ===== 플레이어 위치 ===== */
+  .player {
+    position: absolute;
+    text-align: center;
+  }
+  .player .name { font-weight: bold; font-size: 14px; margin-bottom: 3px; color: #5a4a35; }
+  .player .name.turn { color: #c0392b; text-shadow: 0 0 8px #ffe4b5; }
+  .player .name.uno { color: #d97706; }
+  .player .count { font-size: 12px; color: #8a6d3b; margin-bottom: 4px; }
+  .player.ai-top { top: 8px; left: 50%; transform: translateX(-50%); }
+  .player.ai-left { top: 50%; left: 8px; transform: translateY(-50%); }
+  .player.ai-right { top: 50%; right: 8px; transform: translateY(-50%); }
+
+  /* AI 손패(뒷면) */
+  .ai-hand { display: flex; gap: 2px; justify-content: center; flex-wrap: wrap; max-width: 220px; }
+  .ai-hand .uno-card.back { width: 26px; height: 38px; }
+
+  /* ===== 중앙 덱/버리는 더미 ===== */
+  #center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    gap: 22px;
+    align-items: center;
+  }
+  #center .pile-label { font-size: 11px; color: #8a6d3b; margin-top: 4px; text-align: center; }
+  .pile-wrap { display: flex; flex-direction: column; align-items: center; }
+
+  /* ===== 이쁜 UNO 카드 디자인 ===== */
+  .uno-card {
+    width: 64px;
+    height: 94px;
+    border-radius: 9px;
+    background: #1a1a1a;
+    border: 3px solid #fff;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+    cursor: default;
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+  .uno-card .face {
+    position: absolute;
+    inset: 3px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* 카드 색깔 (핑크 톤) */
+  .uno-card.red .face    { background: linear-gradient(135deg, #f472b6, #db2777); }
+  .uno-card.yellow .face { background: linear-gradient(135deg, #fb7185, #e11d48); }
+  .uno-card.green .face  { background: linear-gradient(135deg, #e879f9, #c026d3); }
+  .uno-card.blue .face   { background: linear-gradient(135deg, #f9a8d4, #ec4899); }
+  .uno-card.wild .face   { background: linear-gradient(135deg, #be185d, #831843); }
+
+  /* 중앙 타원 */
+  .uno-card .oval {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 78%; height: 56%;
+    transform: translate(-50%, -50%) rotate(-22deg);
+    background: rgba(255,255,255,0.95);
+    border-radius: 50%;
+    box-shadow: inset 0 0 4px rgba(0,0,0,0.1);
+  }
+  /* 중앙 숫자/기호 */
+  .uno-card .center {
+    position: relative;
+    z-index: 2;
+    font-size: 30px;
+    font-weight: 900;
+    color: #fff;
+    text-shadow:
+      -1px -1px 0 #000, 1px -1px 0 #000,
+      -1px 1px 0 #000, 1px 1px 0 #000,
+      0 2px 3px rgba(0,0,0,0.4);
+    font-family: 'Arial Black', sans-serif;
+  }
+  .uno-card.red .center    { color: #db2777; }
+  .uno-card.yellow .center { color: #e11d48; }
+  .uno-card.green .center  { color: #c026d3; }
+  .uno-card.blue .center   { color: #ec4899; }
+  .uno-card .center { text-shadow: none; }
+
+  /* 모서리 표시 */
+  .uno-card .corner {
+    position: absolute;
+    z-index: 3;
+    font-size: 11px;
+    font-weight: 900;
+    color: #fff;
+    font-family: 'Arial Black', sans-serif;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    line-height: 1;
+  }
+  .uno-card .corner.tl { top: 4px; left: 5px; }
+  .uno-card .corner.br { bottom: 4px; right: 5px; transform: rotate(180deg); }
+
+  /* 와일드 카드: 중앙 4색 */
+  .uno-card.wild .oval {
+    background: conic-gradient(
+      #f472b6 0deg 90deg,
+      #fb7185 90deg 180deg,
+      #e879f9 180deg 270deg,
+      #f9a8d4 270deg 360deg
+    );
+  }
+  .uno-card.wild .center { color: #fff; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; font-size: 20px; }
+
+  /* 카드 뒷면 (핑크) */
+  .uno-card.back .face {
+    background: linear-gradient(135deg, #f9a8d4, #db2777);
+  }
+  .uno-card.back .face::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 76%; height: 54%;
+    transform: translate(-50%, -50%) rotate(-22deg);
+    background: #fff0f6;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.6) inset;
+  }
+  .uno-card.back .face::after {
+    content: 'UNO';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-22deg);
+    color: #ec4899;
+    font-weight: 900;
+    font-style: italic;
+    font-family: 'Arial Black', sans-serif;
+    font-size: 14px;
+    text-shadow: -1px -1px 0 #be185d, 1px -1px 0 #be185d, -1px 1px 0 #be185d, 1px 1px 0 #be185d;
+  }
+
+  /* ===== 내 손패 ===== */
+  #myArea {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 0;
+    min-height: 110px;
+    flex-wrap: wrap;
+    padding: 0 10px;
+  }
+  #myArea .uno-card {
+    width: 66px;
+    height: 98px;
+    margin-left: -22px;
+    cursor: pointer;
+  }
+  #myArea .uno-card:first-child { margin-left: 0; }
+  #myArea .uno-card.playable:hover {
+    transform: translateY(-14px) scale(1.05);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+    z-index: 10;
+  }
+  #myArea .uno-card.notplayable {
+    opacity: 0.55;
+    filter: grayscale(40%);
+  }
+  #myArea .uno-card.notplayable:hover { transform: translateY(-4px); }
+  #myArea .uno-card.selected {
+    transform: translateY(-18px) scale(1.08);
+    box-shadow: 0 0 0 3px #fbbf24, 0 8px 16px rgba(0,0,0,0.4);
+    z-index: 11;
+  }
+
+  /* 덱 클릭 */
+  #drawPile { cursor: pointer; }
+  #drawPile:hover .uno-card { transform: translateY(-3px); }
+
+  /* 방향 표시 */
+  #dirIndicator {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    color: rgba(138,109,59,0.25);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ===== 버튼 ===== */
+  #controls { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 10px 0; }
+  button {
+    background: #b08d4e; color: #fff; border: none;
+    padding: 10px 18px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 14px;
+    box-shadow: 0 4px 10px rgba(176,141,78,0.4);
+    transition: transform 0.1s, background 0.2s;
+  }
+  button:hover { background: #c9a86a; transform: translateY(-1px); }
+  button:disabled { background: #d4c4a0; color: #f5efe0; cursor: not-allowed; box-shadow: none; transform: none; }
+
+  /* 색상 선택 모달 */
+  #colorModal {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(60,40,15,0.55);
+    z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  #colorModal.show { display: flex; }
+  #colorModal .box {
+    background: #fffdf7;
+    border: 3px solid #c9a86a;
+    border-radius: 18px;
+    padding: 22px 28px;
+    text-align: center;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+  }
+  #colorModal h3 { color: #8a6d3b; margin-bottom: 14px; }
+  .color-pick { display: flex; gap: 14px; justify-content: center; }
+  .color-pick button {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+    padding: 0;
+  }
+  .color-pick button.red    { background: #f472b6; }
+  .color-pick button.yellow { background: #fb7185; }
+  .color-pick button.green  { background: #e879f9; }
+  .color-pick button.blue   { background: #f9a8d4; }
+  .color-pick button:hover { transform: scale(1.12); }
+
+  .legend { font-size: 12px; color: #8a6d3b; margin-top: 4px; line-height: 1.6; }
+  .legend b { color: #a0522d; }
+</style>
+</head>
+<body>
+<h1>🎨 우노 UNO</h1>
+<div id="info">색깔이나 숫자/기호가 같은 카드를 내세요! 처음 손패를 다 버리면 승리합니다.</div>
+<div id="msg"></div>
+
+<div id="wrap">
+  <div id="table">
+    <div id="dirIndicator">↻</div>
+
+    <div class="player ai-top" id="p2">
+      <div class="name">AI 2</div>
+      <div class="count">카드: 0</div>
+      <div class="ai-hand" id="hand2"></div>
+    </div>
+    <div class="player ai-left" id="p1">
+      <div class="name">AI 1</div>
+      <div class="count">카드: 0</div>
+      <div class="ai-hand" id="hand1"></div>
+    </div>
+    <div class="player ai-right" id="p3">
+      <div class="name">AI 3</div>
+      <div class="count">카드: 0</div>
+      <div class="ai-hand" id="hand3"></div>
+    </div>
+
+    <div id="center">
+      <div class="pile-wrap">
+        <div id="drawPile"></div>
+        <div class="pile-label">덱 (D)</div>
+      </div>
+      <div class="pile-wrap">
+        <div id="discardPile"></div>
+        <div class="pile-label">버리는 곳</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="scoreboard">
+    <h2>📊 전적</h2>
+    <div class="score-row">
+      <div class="score-box win"><div class="label">승</div><div class="val" id="winCnt">0</div></div>
+      <div class="score-box lose"><div class="label">패</div><div class="val" id="loseCnt">0</div></div>
+    </div>
+    <button id="btnResetScore">전적 초기화</button>
+
+    <div class="deco-title">🃏 이쁜 카드</div>
+    <div class="card-deco" id="deco"></div>
+    <div style="font-size:11px;color:#b08d4e;line-height:1.5;">
+      핑크·코랄·마젠타·로즈<br>
+      숫자·skip·reverse·+2<br>
+      wild·wild +4
+    </div>
+  </div>
+</div>
+
+<div id="myArea"></div>
+
+<div id="controls">
+  <button id="btnDraw">카드 한 장 뽑기 (D)</button>
+  <button id="btnPass">넘기기</button>
+  <button id="btnUno">UNO! 선언</button>
+  <button id="btnNew">새 게임</button>
+</div>
+<div class="legend">
+  <b>규칙</b>: 같은 색/숫자/기호 내기 · 못 내면 뽑기 ·
+  <b>Skip</b> 다음 턴 건너뜀 · <b>Reverse</b> 방향 반전 ·
+  <b>+2</b> 다음 플레이어 2장 뽑음 · <b>Wild</b> 색 선택 · <b>Wild+4</b> 4장 뽑음 ·
+  카드 1장 남을 때 <b>UNO!</b> 선언
+</div>
+
+<div id="colorModal">
+  <div class="box">
+    <h3>색을 선택하세요</h3>
+    <div class="color-pick">
+      <button class="red"    data-color="red"></button>
+      <button class="yellow" data-color="yellow"></button>
+      <button class="green"  data-color="green"></button>
+      <button class="blue"   data-color="blue"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== 카드 정의 ======
+const COLORS = ['red','yellow','green','blue'];
+const COLOR_KO = {red:'핑크', yellow:'코랄', green:'마젠타', blue:'로즈'};
+const COLOR_HEX = {red:'#db2777', yellow:'#e11d48', green:'#c026d3', blue:'#ec4899'};
+const NUMBERS = [0,1,2,3,4,5,6,7,8,9];
+const ACTIONS = ['skip','reverse','draw2'];
+const SYMBOL = {'skip':'⊘','reverse':'↺','draw2':'+2','wild':'W','wild4':'+4'};
+const SYMBOL_KO = {'skip':'Skip','reverse':'Reverse','draw2':'+2','wild':'Wild','wild4':'Wild+4'};
+
+let players = [];        // {name, hand[], isMe, saidUno}
+let deck = [];
+let discard = [];
+let topColor = null;     // 현재 유효한 색 (wild 선택 색 반영)
+let turnIdx = 0;
+let direction = 1;       // 1: 시계, -1: 반시계
+let gameOver = false;
+let pendingDraw = 0;     // 누적 +2/+4 (간단히 다음 사람만 적용)
+let waitingColorPick = null; // {cardIdx, fromWild4} 콜백 대기
+let drewThisTurn = false; // 이번 턴에 뽑았는지
+let drewCard = null;     // 이번 턴에 뽑은 카드
+
+// ====== 덱 구성 ======
+function buildDeck(){
+  const d=[];
+  for(const c of COLORS){
+    d.push({color:c, value:'0', type:'number'});
+    for(let n=1;n<=9;n++) d.push({color:c, value:String(n), type:'number'});
+    for(const a of ACTIONS){ d.push({color:c, value:a, type:'action'}); d.push({color:c, value:a, type:'action'}); }
+  }
+  for(let i=0;i<4;i++){ d.push({color:'wild', value:'wild', type:'wild'}); d.push({color:'wild', value:'wild4', type:'wild4'}); }
+  shuffle(d);
+  return d;
+}
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
+
+// ====== 새 게임 ======
+function newGame(){
+  deck = buildDeck();
+  discard = [];
+  players = [
+    {name:'나',   hand:[], isMe:true,  saidUno:false},
+    {name:'AI 1', hand:[], isMe:false, saidUno:false},
+    {name:'AI 2', hand:[], isMe:false, saidUno:false},
+    {name:'AI 3', hand:[], isMe:false, saidUno:false},
+  ];
+  for(let i=0;i<7;i++) for(const p of players) p.hand.push(deck.pop());
+  // 시작 카드: 숫자카드가 나올 때까지
+  let starter;
+  do { starter = deck.pop(); if(starter.type!=='number') deck.unshift(starter); } while(starter.type!=='number');
+  discard.push(starter);
+  topColor = starter.color;
+  turnIdx = 0; direction = 1; gameOver = false;
+  pendingDraw = 0; waitingColorPick = null; drewThisTurn = false; drewCard = null;
+  setMsg('새 게임 시작! 같은 색/숫자/기호의 카드를 내세요.');
+  render();
+  renderDeco();
+  // 시작 카드가 특수카드면 처리(여기서는 숫자만 허용했으므로 생략)
+  if(!players[turnIdx].isMe) scheduleAiTurn();
+}
+
+// ====== 플레이 가능 여부 ======
+function canPlay(card){
+  if(pendingDraw > 0){
+    // +2 누적 중에는 +2만, +4 누적 중에는 +4만 (간단히 카드 종류 일치)
+    const top = discard[discard.length-1];
+    if(top.value==='draw2' && card.value==='draw2') return true;
+    if(top.value==='wild4' && card.value==='wild4') return true;
+    return false;
+  }
+  if(card.color === 'wild') return true;
+  if(card.color === topColor) return true;
+  const top = discard[discard.length-1];
+  if(card.value === top.value) return true;
+  return false;
+}
+
+// ====== 카드 내기 ======
+function playCard(pi, ci, chosenColor){
+  const p = players[pi];
+  const card = p.hand[ci];
+  if(!canPlay(card)){ setMsg('이 카드는 낼 수 없어요.'); return false; }
+  p.hand.splice(ci,1);
+  discard.push(card);
+
+  // UNO 선언 체크 (AI는 자동, 사람은 버튼)
+  if(!p.isMe && p.hand.length === 1) p.saidUno = true;
+
+  // 색 처리
+  if(card.color === 'wild') topColor = chosenColor || pickAiColor(p);
+  else topColor = card.color;
+
+  let extraMsg = '';
+  // 특수 효과
+  if(card.value === 'skip'){
+    extraMsg = ' 다음 플레이어 건너뜀!';
+    advanceTurn(); advanceTurn();
+  } else if(card.value === 'reverse'){
+    direction *= -1;
+    extraMsg = ' 방향 반전!';
+    if(players.length === 2){ advanceTurn(); }
+    advanceTurn();
+  } else if(card.value === 'draw2'){
+    pendingDraw += 2;
+    advanceTurn();
+    forceDraw(turnIdx, 2);
+    extraMsg = ' 다음 플레이어 2장 뽑음!';
+    advanceTurn();
+    pendingDraw = 0;
+  } else if(card.value === 'wild4'){
+    pendingDraw += 4;
+    advanceTurn();
+    forceDraw(turnIdx, 4);
+    extraMsg = ' 다음 플레이어 4장 뽑음!';
+    advanceTurn();
+    pendingDraw = 0;
+  } else {
+    advanceTurn();
+  }
+
+  // 승리 체크
+  if(p.hand.length === 0){
+    gameOver = true;
+    if(p.isMe){ setMsg('🎉 승리! 손패를 다 냈습니다! 3초 뒤 자동 재시작...'); addResult(true); }
+    else { setMsg('😔 ' + p.name + '가 먼저 냈습니다. 패배! 3초 뒤 자동 재시작...'); addResult(false); }
+    render();
+    setTimeout(()=>{ if(gameOver) newGame(); }, 3000);
+    return true;
+  }
+  // 사람이 UNO 선언 안 했는데 1장 남음 -> 페널티 (간단히 2장 뽑기)
+  if(p.isMe && p.hand.length === 1 && !p.saidUno){
+    setMsg('⚠ UNO 선언 안 함! 페널티 2장.');
+    forceDraw(0, 2);
+    render();
+    return true;
+  }
+  setMsg(p.name + ': ' + describeCard(card) + (card.color==='wild' ? ' (' + COLOR_KO[topColor] + ')' : '') + extraMsg);
+  drewThisTurn = false; drewCard = null;
+  render();
+  if(!gameOver && !players[turnIdx].isMe) scheduleAiTurn();
+  return true;
+}
+
+function describeCard(card){
+  if(card.type === 'number') return COLOR_KO[card.color] + ' ' + card.value;
+  return COLOR_KO[card.color] + ' ' + SYMBOL_KO[card.value];
+}
+
+function pickAiColor(p){
+  const cnt = {red:0,yellow:0,green:0,blue:0};
+  for(const c of p.hand){ if(c.color!=='wild') cnt[c.color]++; }
+  let best='red', bv=-1;
+  for(const k of COLORS){ if(cnt[k]>bv){ bv=cnt[k]; best=k; } }
+  return best;
+}
+
+// ====== 뽑기 ======
+function forceDraw(pi, n){
+  for(let i=0;i<n;i++){
+    if(deck.length===0) reshuffleFromDiscard();
+    if(deck.length===0) break;
+    players[pi].hand.push(deck.pop());
+  }
+  if(players[pi].hand.length > 1) players[pi].saidUno = false;
+}
+function drawOne(pi){
+  if(deck.length===0) reshuffleFromDiscard();
+  if(deck.length===0) return null;
+  const c = deck.pop();
+  players[pi].hand.push(c);
+  if(players[pi].hand.length > 1) players[pi].saidUno = false;
+  return c;
+}
+function reshuffleFromDiscard(){
+  if(discard.length <= 1) return;
+  const top = discard.pop();
+  const rest = discard;
+  discard = [top];
+  for(const c of rest){ if(c.color==='wild'){ c.color='wild'; } }
+  shuffle(rest);
+  deck = rest;
+}
+
+// ====== 턴 진행 ======
+function advanceTurn(){
+  turnIdx = (turnIdx + direction + players.length) % players.length;
+}
+function scheduleAiTurn(){
+  if(gameOver) return;
+  setTimeout(()=>{ if(!gameOver && !players[turnIdx].isMe) aiTurn(); }, 700 + Math.random()*500);
+}
+function aiTurn(){
+  const p = players[turnIdx];
+  const playable = p.hand.map((c,i)=>({c,i})).filter(x=>canPlay(x.c));
+  if(playable.length === 0){
+    const drawn = drawOne(turnIdx);
+    setMsg(p.name + ': 카드를 뽑었습니다.');
+    render();
+    if(drawn && canPlay(drawn)){
+      setTimeout(()=>{
+        const idx = p.hand.lastIndexOf(drawn);
+        playCard(turnIdx, idx);
+      }, 600);
+    } else {
+      setTimeout(()=>{ advanceTurn(); render(); if(!gameOver && !players[turnIdx].isMe) scheduleAiTurn(); else if(!gameOver && players[turnIdx].isMe) setMsg('내 턴! 카드를 내거나 뽑으세요.'); }, 500);
+    }
+    return;
+  }
+  // 전략: 와일드는 아끼고, 숫자/액션 우선, 손에 많은 색 우선
+  playable.sort((a,b)=>{
+    const aw = a.c.color==='wild' ? 1 : 0;
+    const bw = b.c.color==='wild' ? 1 : 0;
+    if(aw !== bw) return aw - bw;
+    return 0;
+  });
+  const choice = playable[0];
+  playCard(turnIdx, choice.i);
+}
+
+// ====== 사람: 카드 클릭 ======
+function onMyCardClick(ci){
+  if(gameOver) return;
+  if(turnIdx !== 0) { setMsg('내 턴이 아니에요.'); return; }
+  const card = players[0].hand[ci];
+  if(!canPlay(card)){ setMsg('지금은 낼 수 없는 카드예요.'); return; }
+  if(card.color === 'wild'){
+    waitingColorPick = (chosenColor)=>{ playCard(0, ci, chosenColor); };
+    document.getElementById('colorModal').classList.add('show');
+  } else {
+    playCard(0, ci);
+  }
+}
+
+// ====== 사람: 뽑기 ======
+function onDrawClick(){
+  if(gameOver) return;
+  if(turnIdx !== 0) { setMsg('내 턴이 아니에요.'); return; }
+  if(drewThisTurn){ setMsg('이미 뽑았어요. 카드를 내거나 넘기세요.'); return; }
+  const c = drawOne(0);
+  drewThisTurn = true; drewCard = c;
+  setMsg('카드를 뽑았습니다: ' + describeCard(c) + (canPlay(c) ? ' (낼 수 있어요!)' : ' (낼 수 없음. 넘기세요.)'));
+  render();
+}
+function onPassClick(){
+  if(gameOver) return;
+  if(turnIdx !== 0) return;
+  if(!drewThisTurn){ setMsg('먼저 카드를 뽑아야 넘길 수 있어요.'); return; }
+  setMsg('턴을 넘깁니다.');
+  drewThisTurn = false; drewCard = null;
+  advanceTurn();
+  render();
+  if(!gameOver && !players[turnIdx].isMe) scheduleAiTurn();
+}
+
+// ====== UNO 선언 ======
+function onUnoClick(){
+  if(gameOver) return;
+  if(players[0].hand.length === 2 || players[0].hand.length === 1){
+    players[0].saidUno = true;
+    setMsg('UNO! 선언!');
+    render();
+  } else {
+    setMsg('UNO는 카드가 2장일 때 선언하세요.');
+  }
+}
+
+// ====== 전적 ======
+let winCnt = Number(localStorage.getItem('uno_win')||0);
+let loseCnt = Number(localStorage.getItem('uno_lose')||0);
+function updateScoreUI(){
+  document.getElementById('winCnt').textContent = winCnt;
+  document.getElementById('loseCnt').textContent = loseCnt;
+}
+function addResult(win){
+  if(win){ winCnt++; localStorage.setItem('uno_win', winCnt); }
+  else   { loseCnt++; localStorage.setItem('uno_lose', loseCnt); }
+  updateScoreUI();
+}
+
+// ====== 렌더링 ======
+function setMsg(m){ document.getElementById('msg').textContent = m; }
+
+function cardHtml(card, opts={}){
+  const cls = ['uno-card', card.color];
+  if(opts.back) cls.push('back');
+  let inner = '';
+  if(opts.back){
+    inner = '<div class="face"></div>';
+  } else {
+    const sym = card.type==='number' ? card.value : SYMBOL[card.value];
+    inner =
+      '<div class="face">' +
+        (card.color==='wild' ? '<div class="oval"></div>' : '<div class="oval"></div>') +
+        '<div class="center">' + sym + '</div>' +
+        '<div class="corner tl">' + sym + '</div>' +
+        '<div class="corner br">' + sym + '</div>' +
+      '</div>';
+  }
+  return '<div class="' + cls.join(' ') + '">' + inner + '</div>';
+}
+
+function render(){
+  // AI 플레이어
+  for(let i=1;i<4;i++){
+    const p = players[i];
+    const el = document.getElementById('p'+i);
+    const nameEl = el.querySelector('.name');
+    nameEl.textContent = p.name + (p.saidUno && p.hand.length===1 ? ' 🁢' : '');
+    nameEl.classList.toggle('turn', i===turnIdx && !gameOver);
+    nameEl.classList.toggle('uno', p.hand.length===1 && p.saidUno);
+    el.querySelector('.count').textContent = '카드: ' + p.hand.length;
+    const handEl = document.getElementById('hand'+i);
+    let hh='';
+    const show = Math.min(p.hand.length, 8);
+    for(let k=0;k<show;k++) hh += '<div class="uno-card back"><div class="face"></div></div>';
+    if(p.hand.length>8) hh += '<span style="font-size:11px;color:#8a6d3b;align-self:center;">+'+(p.hand.length-8)+'</span>';
+    handEl.innerHTML = hh;
+  }
+  // 나 (이름/카운트 없이 손패만 하단)
+  // 버튼 상태
+  document.getElementById('btnDraw').disabled = !(turnIdx===0 && !gameOver && !drewThisTurn);
+  document.getElementById('btnPass').disabled = !(turnIdx===0 && !gameOver && drewThisTurn);
+  document.getElementById('btnUno').disabled = !(!gameOver && (players[0].hand.length===2 || players[0].hand.length===1) && !players[0].saidUno);
+
+  // 덱
+  const drawEl = document.getElementById('drawPile');
+  drawEl.innerHTML = '<div class="uno-card back"><div class="face"></div></div>';
+  // 버리는 더미
+  const discEl = document.getElementById('discardPile');
+  if(discard.length>0){
+    const top = discard[discard.length-1];
+    let html = cardHtml(top);
+    if(top.color==='wild'){
+      // 선택된 색 표시 링
+      html = '<div style="position:relative;">' + html + '<div style="position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:10px;height:10px;border-radius:50%;background:'+COLOR_HEX[topColor]+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div></div>';
+    }
+    discEl.innerHTML = html;
+  }
+  // 방향 표시
+  document.getElementById('dirIndicator').textContent = direction===1 ? '↻' : '↺';
+
+  // 내 손패
+  const me = players[0];
+  const myEl = document.getElementById('myArea');
+  let mh='';
+  for(let i=0;i<me.hand.length;i++){
+    const c = me.hand[i];
+    const playable = canPlay(c) && turnIdx===0 && !gameOver;
+    const cls = (playable ? 'playable' : 'notplayable');
+    mh += '<div class="uno-card '+c.color+' '+cls+'" data-i="'+i+'">' +
+      '<div class="face"><div class="oval"></div>' +
+      '<div class="center">' + (c.type==='number'?c.value:SYMBOL[c.value]) + '</div>' +
+      '<div class="corner tl">' + (c.type==='number'?c.value:SYMBOL[c.value]) + '</div>' +
+      '<div class="corner br">' + (c.type==='number'?c.value:SYMBOL[c.value]) + '</div>' +
+      '</div></div>';
+  }
+  myEl.innerHTML = mh;
+  myEl.querySelectorAll('.uno-card').forEach(el=>{
+    el.addEventListener('click', ()=>{ onMyCardClick(Number(el.dataset.i)); });
+  });
+  updateScoreUI();
+}
+
+// 사이드 이쁜 카드 데코
+function renderDeco(){
+  const samples = [
+    {color:'red', value:'7', type:'number'},
+    {color:'blue', value:'draw2', type:'action'},
+    {color:'wild', value:'wild4', type:'wild4'},
+  ];
+  const el = document.getElementById('deco');
+  el.innerHTML = samples.map(c=>cardHtml(c)).join('');
+}
+
+// ====== 이벤트 ======
+document.getElementById('btnDraw').addEventListener('click', onDrawClick);
+document.getElementById('btnPass').addEventListener('click', onPassClick);
+document.getElementById('btnUno').addEventListener('click', onUnoClick);
+document.getElementById('btnNew').addEventListener('click', newGame);
+document.getElementById('drawPile').addEventListener('click', onDrawClick);
+document.getElementById('btnResetScore').addEventListener('click', ()=>{
+  winCnt=0; loseCnt=0;
+  localStorage.removeItem('uno_win'); localStorage.removeItem('uno_lose');
+  updateScoreUI();
+});
+document.querySelectorAll('#colorModal .color-pick button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    const col = b.dataset.color;
+    document.getElementById('colorModal').classList.remove('show');
+    if(waitingColorPick){ const cb = waitingColorPick; waitingColorPick = null; cb(col); }
+  });
+});
+document.addEventListener('keydown', e=>{
+  if(e.code==='KeyD'){ onDrawClick(); }
+  else if(e.code==='KeyN'){ newGame(); }
+  else if(e.code==='KeyU'){ onUnoClick(); }
+  else if(e.code==='Space'){ e.preventDefault(); if(turnIdx===0 && drewThisTurn) onPassClick(); }
+});
+
+newGame();
+</script>
+</body>
+</html>
