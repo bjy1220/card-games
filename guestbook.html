@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>📖 방명록</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #f5efe0 0%, #ece0c8 40%, #ddc9a3 100%);
+    color: #5a4a35;
+    min-height: 100vh;
+    padding: 24px 16px 48px;
+    text-align: center;
+  }
+  h1 { font-size: 28px; color: #8a6d3b; margin-bottom: 6px; text-shadow: 0 2px 4px rgba(255,255,255,0.6); }
+  .sub { font-size: 13px; color: #a0825a; margin-bottom: 20px; }
+  .back { display:inline-block; margin-bottom: 16px; color:#8a6d3b; text-decoration:none; font-size:13px; }
+  .back:hover { text-decoration: underline; }
+
+  #form {
+    background: rgba(255,251,240,0.85);
+    border: 2px solid #c9a86a;
+    border-radius: 18px;
+    padding: 18px;
+    max-width: 640px;
+    margin: 0 auto 24px;
+    box-shadow: 0 6px 16px rgba(138,109,59,0.25);
+    text-align: left;
+  }
+  #form label { display:block; font-size:13px; color:#8a6d3b; font-weight:bold; margin-bottom:4px; }
+  #form input, #form textarea {
+    width:100%; padding:10px 12px; border:1px solid #d9c4a0; border-radius:10px;
+    font-family:inherit; font-size:14px; color:#5a4a35; background:#fffdf7; margin-bottom:12px;
+    resize: vertical;
+  }
+  #form input:focus, #form textarea:focus { outline:none; border-color:#db2777; box-shadow:0 0 0 3px rgba(219,39,119,0.15); }
+  #form textarea { min-height: 70px; }
+  #form button {
+    background: linear-gradient(135deg, #f472b6, #db2777); color:#fff; border:none;
+    padding: 10px 22px; border-radius:20px; font-weight:bold; cursor:pointer; font-size:14px;
+    box-shadow: 0 4px 10px rgba(219,39,119,0.35); transition: transform 0.1s;
+  }
+  #form button:hover { transform: translateY(-1px); }
+  #form button:disabled { background:#d4c4a0; box-shadow:none; cursor:not-allowed; transform:none; }
+  .char-count { font-size:11px; color:#b08d4e; text-align:right; margin-top:-8px; margin-bottom:10px; }
+
+  #tableWrap {
+    max-width: 820px; margin: 0 auto;
+    background: rgba(255,251,240,0.7);
+    border: 2px solid #c9a86a;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 6px 16px rgba(138,109,59,0.2);
+  }
+  table { width:100%; border-collapse: collapse; }
+  thead th {
+    background: linear-gradient(135deg, #c9a86a, #b08d4e);
+    color:#fff; font-size:14px; padding:12px;
+    text-align:left;
+  }
+  thead th.col-name { width: 130px; }
+  thead th.col-time { width: 160px; }
+  tbody td {
+    padding: 11px 12px; border-top:1px solid #e8d9b8; font-size:13px; color:#5a4a35;
+    text-align:left; vertical-align: top; word-break: break-word;
+  }
+  tbody tr:nth-child(even) { background: rgba(255,251,240,0.5); }
+  tbody tr:hover { background: rgba(244,114,182,0.08); }
+  .gname { font-weight:bold; color:#be185d; }
+  .gtime { font-size:12px; color:#a0825a; white-space:nowrap; }
+  #empty td { text-align:center; color:#b08d4e; padding:30px; }
+  #status { font-size:12px; color:#b08d4e; margin-top:8px; min-height:16px; }
+
+  #configWarn {
+    max-width:640px; margin:0 auto 20px; background:#fff3f6; border:2px solid #f472b6;
+    border-radius:14px; padding:16px; color:#be185d; font-size:13px; line-height:1.6; text-align:left;
+  }
+  #configWarn b { color:#831843; }
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← 게임 목록으로</a>
+<h1>📖 방명록</h1>
+<div class="sub">이름과 메시지를 남겨주세요! 모든 방문자가 볼 수 있어요.</div>
+
+<div id="configWarn" style="display:none;">
+  <b>⚠ Firebase 설정이 필요합니다.</b><br>
+  <code>guestbook.html</code> 파일 안의 <code>firebaseConfig</code> 값을 본인의 Firebase 프로젝트 설정으로 채워주세요.
+  자세한 방법은 아래 안내를 참고하세요.
+</div>
+
+<form id="form">
+  <label for="name">이름</label>
+  <input type="text" id="name" maxlength="20" placeholder="이름을 입력하세요" required>
+  <label for="message">메시지</label>
+  <textarea id="message" maxlength="200" placeholder="메시지를 남겨주세요 (최대 200자)" required></textarea>
+  <div class="char-count"><span id="charCnt">0</span>/200</div>
+  <button type="submit" id="submitBtn">✍ 남기기</button>
+</form>
+
+<div id="tableWrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="col-name">이름</th>
+        <th>메시지</th>
+        <th class="col-time">시간</th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr id="loading"><td colspan="3">불러오는 중...</td></tr>
+    </tbody>
+  </table>
+</div>
+<div id="status"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+// ====== Firebase 설정 (본인 프로젝트 값으로 교체하세요) ======
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+// ============================================================
+
+const configured = !firebaseConfig.apiKey.includes("YOUR_");
+if (!configured) {
+  document.getElementById('configWarn').style.display = 'block';
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('tbody').innerHTML = '<tr id="empty"><td colspan="3">Firebase 설정 후 방명록이 표시됩니다.</td></tr>';
+}
+
+let db = null;
+if (configured) {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.database();
+}
+
+// ====== HTML 이스케이프 (XSS 방지) ======
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmtTime(ts){
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
+
+// ====== 렌더링 ======
+function renderEntries(entries){
+  const tb = document.getElementById('tbody');
+  if (!entries || Object.keys(entries).length === 0){
+    tb.innerHTML = '<tr id="empty"><td colspan="3">아직 글이 없어요. 첫 글을 남겨보세요!</td></tr>';
+    return;
+  }
+  const arr = Object.values(entries).sort((a,b)=> (b.time||0) - (a.time||0));
+  let html = '';
+  for (const e of arr){
+    html += '<tr>' +
+      '<td class="gname">' + esc(e.name) + '</td>' +
+      '<td>' + esc(e.message).replace(/\n/g,'<br>') + '</td>' +
+      '<td class="gtime">' + fmtTime(e.time) + '</td>' +
+    '</tr>';
+  }
+  tb.innerHTML = html;
+}
+
+// ====== 실시간 리스너 ======
+if (db) {
+  db.ref('guestbook/entries').on('value', snap => {
+    renderEntries(snap.val());
+  }, err => {
+    document.getElementById('tbody').innerHTML = '<tr id="empty"><td colspan="3">불러오기 실패: ' + esc(err.message) + '</td></tr>';
+  });
+}
+
+// ====== 글 작성 ======
+document.getElementById('form').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!db) return;
+  const name = document.getElementById('name').value.trim();
+  const message = document.getElementById('message').value.trim();
+  if (!name || !message) return;
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '등록 중...';
+  const ref = db.ref('guestbook/entries').push();
+  ref.set({
+    name: name,
+    message: message,
+    time: firebase.database.ServerValue.TIMESTAMP
+  }).then(()=>{
+    document.getElementById('message').value = '';
+    document.getElementById('charCnt').textContent = '0';
+    document.getElementById('status').textContent = '✓ 등록되었습니다!';
+    setTimeout(()=>{ document.getElementById('status').textContent=''; }, 2500);
+  }).catch(err=>{
+    document.getElementById('status').textContent = '✗ 실패: ' + err.message;
+  }).finally(()=>{
+    btn.disabled = false;
+    btn.textContent = '✍ 남기기';
+  });
+});
+
+// 글자 수 카운트
+document.getElementById('message').addEventListener('input', e=>{
+  document.getElementById('charCnt').textContent = e.target.value.length;
+});
+</script>
+</body>
+</html>
